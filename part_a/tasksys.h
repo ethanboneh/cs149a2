@@ -64,8 +64,9 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
     
     private:
         int num_threads;
+        IRunnable* current_runnable;
         std::vector<std::thread> threads;
-        std::queue<std::pair<IRunnable*, int>> task_queue;
+        std::queue<int> task_queue;
         std::atomic<int> remaining_tasks{0};
 
         std::mutex mutex;

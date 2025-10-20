@@ -126,7 +126,7 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
         threads.emplace_back([this]() {
             while (true) {
                 // next task from the task queue
-                std::pair<IRunnable*, int> task;
+                int task;
                 
                 // LOCK
                 mutex.lock();
@@ -144,11 +144,8 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
                 task_queue.pop(); // shared resource
                 mutex.unlock();
                 // UNLOCK
-                
-                IRunnable* new_task = task.first;
-                int task_id = task.second;
-                
-                new_task->runTask(task_id, total_tasks);
+
+                current_runnable->runTask(task, total_tasks);
                 mutex.lock();
                 remaining_tasks--;
                 mutex.unlock();
@@ -181,8 +178,9 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_tota
     mutex.lock();
     total_tasks = num_total_tasks;
     remaining_tasks = num_total_tasks;
+    current_runnable = runnable;
     for (int i = 0; i < num_total_tasks; i++) {
-        task_queue.push(std::make_pair(runnable, i));
+        task_queue.push(i);
     }
 
     while (remaining_tasks > 0) {
