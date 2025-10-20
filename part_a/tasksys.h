@@ -7,6 +7,8 @@
 #include <queue>
 #include <vector>
 #include <thread>
+#include <atomic>
+#include <map>
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
