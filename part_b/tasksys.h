@@ -2,6 +2,32 @@
 #define _TASKSYS_H
 
 #include "itasksys.h"
+#include <unordered_map>
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+#include <vector>
+#include <thread>
+#include <atomic>
+#include <map>
+
+
+
+
+struct TaskBlock {
+    int num_parents;
+    std::vector<TaskID> children;
+    IRunnable* runnable;
+    bool completed = false;
+
+    int num_total_tasks;
+    int num_finished_tasks = 0;
+    
+    TaskBlock(IRunnable* r, int n)
+        : num_parents(0), runnable(r), num_total_tasks(n) {}
+    
+    TaskBlock() = default;
+};
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -68,6 +94,32 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
         TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                 const std::vector<TaskID>& deps);
         void sync();
+
+    private:
+        // FROM PART A
+        int num_threads;
+        std::vector<std::thread> threads;
+        std::queue<std::pair<TaskID, int>> task_queue;
+        std::atomic<int> remaining_tasks{0};
+
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::condition_variable cv_finished;
+        bool stop = false;
+        int total_tasks = 0;
+
+        // new stuff:
+        void schedulerThreadFunc(); // will run new tasks
+        std::thread scheduler_thread; // thread to run ^
+        std::condition_variable scheduler_cv; // gets woken up for ^
+
+        std::unordered_map<TaskID, TaskBlock> dependencies_map; // track dependencies
+        std::queue<TaskID> active_queue; // ready to run task groups, based on ID.
+        
+        TaskID index = 0; // for labeling TaskIDs.
+        std::atomic<int> unfinished_task_group{0};
+
+        void run(IRunnable* runnable, int num_total_tasks, TaskID task_id);
 };
 
 #endif
