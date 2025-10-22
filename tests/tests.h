@@ -113,6 +113,66 @@ TestResults yourTest(ITaskSystem* t, bool do_async, int num_elements, int num_bu
     return results;
 }
 
+class OverlapTaskGivenDeps : public IRunnable {
+public:
+    int *buf_;
+    int start_, end_, val_;
+    OverlapTaskGivenDeps(int *buf, int s, int e, int v)
+        : buf_(buf), start_(s), end_(e), val_(v) {}
+
+    void runTask(int task_id, int num_total_tasks) override {
+        int len = end_ - start_;
+        int chunk = (len + num_total_tasks - 1) / num_total_tasks;
+        int s = start_ + task_id * chunk;
+        int e = std::min(s + chunk, end_);
+        for (int i = s; i < e; i++) {
+            buf_[i] += val_;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));  
+        }
+    }
+};
+
+TestResults overlapGivenDepsAsyncTest(ITaskSystem *t) {
+    const int N = 50;
+    int *buf = new int[N];
+    for (int i = 0; i < N; i++) buf[i] = 0;
+
+    OverlapTaskGivenDeps A(buf, 0, 30, 1);
+    OverlapTaskGivenDeps B(buf, 20, 50, 2);
+    OverlapTaskGivenDeps C(buf, 0, 50, 3);
+
+    std::vector<TaskID> d1;
+    TaskID idA = t->runAsyncWithDeps(&A, 4, d1);
+    std::vector<TaskID> d2 = {idA};
+    TaskID idB = t->runAsyncWithDeps(&B, 4, d2);
+    std::vector<TaskID> d3 = {idA, idB};
+    t->runAsyncWithDeps(&C, 4, d3);
+    t->sync();
+
+    bool pass = true;
+    for (int i = 0; i < N; i++) {
+        int expected;
+        if (i < 20)
+            expected = 1 + 3;
+        else if (i < 30)
+            expected = 1 + 2 + 3;
+        else
+            expected = 2 + 3;
+        if (buf[i] != expected) {
+            printf("Problem at %d. Got %d, expected %d\n", i, buf[i], expected);
+            pass = false;
+            break;
+        }
+    }
+
+    TestResults r;
+    r.passed = pass;
+    r.time = 0.0;
+    delete[] buf;
+    return r;
+}
+
+
 /*
  * ==================================================================
  *   Begin task definitions used in tests

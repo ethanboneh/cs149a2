@@ -158,8 +158,6 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
                     current_runnable->runTask(local_remaining_tasks, total_tasks);
                     mutex.lock();
                     finished_remaining_tasks--;
-
-                    
                 }
     
                 mutex.unlock();
