@@ -121,41 +121,59 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
     //
     
     threads.reserve(num_threads);
+    
 
     for (int i = 0; i < num_threads; i++) {
         threads.emplace_back([this]() {
             while (true) {
                 // next task from the task queue
-                int task;
                 
                 // LOCK
                 mutex.lock();
-                while (task_queue.empty() && !stop) {
+                int local_remaining_tasks = remaining_tasks;
+                while (remaining_tasks == 0 && !stop) {
+
                     mutex.unlock();
+                    
+            
                     mutex.lock();
                 }
-                
-                if (stop && task_queue.empty()) {
+
+                if (stop) {
+                    
                     mutex.unlock();
                     return;
                 }
 
-                task = task_queue.front();
-                task_queue.pop(); // shared resource
-                mutex.unlock();
-                // UNLOCK
+                while(remaining_tasks != 0) {
+                    
+                    remaining_tasks--;
+                    local_remaining_tasks = remaining_tasks;
 
-                current_runnable->runTask(task, total_tasks);
-                mutex.lock();
-                remaining_tasks--;
+                    
+                    mutex.unlock();
+                    
+                    
+                    
+                    current_runnable->runTask(local_remaining_tasks, total_tasks);
+                    mutex.lock();
+                    finished_remaining_tasks--;
+
+                    
+                }
+    
                 mutex.unlock();
+                
+
             }
         });
     }
 }
 
 TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {
+    
     mutex.lock();
+    // std::cout << "Shutting down spinning thread pool... from new destructor " << remaining_tasks << std::endl;
     stop = true;
     mutex.unlock();
 
@@ -163,7 +181,9 @@ TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {
         if (thread.joinable()) {
             thread.join();
         }
+        
     }
+    // std::cout << "Joined a spinning thread" << std::endl; 
 }
 
 void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_total_tasks) {
@@ -178,16 +198,16 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_tota
     mutex.lock();
     total_tasks = num_total_tasks;
     remaining_tasks = num_total_tasks;
+    finished_remaining_tasks = num_total_tasks;
     current_runnable = runnable;
-    for (int i = 0; i < num_total_tasks; i++) {
-        task_queue.push(i);
-    }
 
-    while (remaining_tasks > 0) {
+    while (finished_remaining_tasks > 0) {
+        
         mutex.unlock();
         mutex.lock();
     }
     mutex.unlock();
+    // std::cout << "Finished all spinning tasks!" << std::endl;
 }
 
 TaskID TaskSystemParallelThreadPoolSpinning::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
